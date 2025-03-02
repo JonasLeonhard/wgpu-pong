@@ -7,6 +7,7 @@ mod renderer;
 
 fn main() -> Result<(), EventLoopError> {
     env_logger::init();
+
     let event_loop = EventLoop::new()?;
     event_loop.set_control_flow(ControlFlow::Poll);
 
