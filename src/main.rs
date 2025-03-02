@@ -32,6 +32,7 @@ impl ApplicationHandler for App {
 }
 
 fn main() {
+    env_logger::init();
     let event_loop = EventLoop::new().expect("cannot create winit event_loop");
     event_loop.set_control_flow(ControlFlow::Poll);
     let mut app = App::default();
