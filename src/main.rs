@@ -1,40 +1,15 @@
-use winit::application::ApplicationHandler;
-use winit::event::WindowEvent;
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::window::{Window, WindowId};
+use app::App;
+use winit::error::EventLoopError;
+use winit::event_loop::{ControlFlow, EventLoop};
 
-#[derive(Default)]
-struct App {
-    window: Option<Window>,
-}
+mod app;
+mod renderer;
 
-impl ApplicationHandler for App {
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        self.window = Some(
-            event_loop
-                .create_window(Window::default_attributes())
-                .unwrap(),
-        );
-    }
-
-    fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        match event {
-            WindowEvent::CloseRequested => {
-                println!("The close button was pressed; stopping");
-                event_loop.exit();
-            }
-            WindowEvent::RedrawRequested => {
-                self.window.as_ref().unwrap().request_redraw();
-            }
-            _ => (),
-        }
-    }
-}
-
-fn main() {
+fn main() -> Result<(), EventLoopError> {
     env_logger::init();
-    let event_loop = EventLoop::new().expect("cannot create winit event_loop");
+    let event_loop = EventLoop::new()?;
     event_loop.set_control_flow(ControlFlow::Poll);
+
     let mut app = App::default();
-    let _ = event_loop.run_app(&mut app);
+    event_loop.run_app(&mut app)
 }
