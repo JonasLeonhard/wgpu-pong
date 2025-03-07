@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use palette::Srgba;
 use winit::window::Window;
 
 pub struct Renderer {
@@ -71,10 +72,7 @@ impl Renderer {
     }
 
     pub fn render(&self) -> Result<()> {
-        let surface_texture = self
-            .surface
-            .get_current_texture()
-            .context("failed to acquire next swapchain texture")?;
+        let surface_texture = self.surface.get_current_texture()?;
 
         let texture_view = surface_texture
             .texture
@@ -85,9 +83,10 @@ impl Renderer {
                 ..Default::default()
             });
 
-        // Renders a GREEN screen
         let mut encoder = self.device.create_command_encoder(&Default::default());
-        // Create the renderpass which will clear the screen.
+
+        let clear_color = Srgba::new(67, 140, 127, 1).into_linear();
+
         let renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -95,10 +94,10 @@ impl Renderer {
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: 0.005,
-                        g: 0.005,
-                        b: 0.005,
-                        a: 1.0,
+                        r: clear_color.red,
+                        g: clear_color.green,
+                        b: clear_color.blue,
+                        a: clear_color.alpha,
                     }),
                     store: wgpu::StoreOp::Store,
                 },
