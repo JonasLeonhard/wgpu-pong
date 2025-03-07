@@ -35,6 +35,10 @@ impl ApplicationHandler for App {
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
+        let Some(window) = self.window.as_ref() else {
+            return info!("Skip window_event handling. We have no window");
+        };
+
         let Some(renderer) = self.renderer.as_mut() else {
             return info!("Skip window_event handling. We have no renderer");
         };
@@ -49,7 +53,7 @@ impl ApplicationHandler for App {
                     error!("Error: renderer.render(): {}", err);
                 }
 
-                self.window.as_ref().unwrap().request_redraw();
+                window.request_redraw();
             }
             WindowEvent::Resized(size) => {
                 // Reconfigures the size of the surface. We do not re-render
