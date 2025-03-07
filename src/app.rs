@@ -1,3 +1,4 @@
+use log::{error, info};
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
@@ -14,29 +15,40 @@ pub struct App {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let window = Arc::new(
-            event_loop
-                .create_window(Window::default_attributes())
-                .unwrap(),
-        );
+        let window = match event_loop.create_window(Window::default_attributes()) {
+            Ok(window) => Arc::new(window),
+            Err(err) => {
+                return error!("Failed to create window: {}", err);
+            }
+        };
 
-        self.renderer = Some(pollster::block_on(Renderer::new(window.clone())));
+        match pollster::block_on(Renderer::new(window.clone())) {
+            Ok(renderer) => {
+                self.renderer = Some(renderer);
+            }
+            Err(err) => {
+                error!("Failed to create renderer: {}", err);
+            }
+        }
 
         self.window = Some(window);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
-        let renderer = self
-            .renderer
-            .as_mut()
-            .expect("called window_event without renderer.");
+        let Some(renderer) = self.renderer.as_mut() else {
+            return info!("Skip window_event handling. We have no renderer");
+        };
+
         match event {
             WindowEvent::CloseRequested => {
-                println!("The close button was pressed; stopping");
+                info!("The close button was pressed; stopping");
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                renderer.render();
+                if let Err(err) = renderer.render() {
+                    error!("Error: renderer.render(): {}", err);
+                }
+
                 self.window.as_ref().unwrap().request_redraw();
             }
             WindowEvent::Resized(size) => {

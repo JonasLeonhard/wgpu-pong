@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use anyhow::{Context, Result};
 use winit::window::Window;
 
 pub struct Renderer {
@@ -12,21 +13,21 @@ pub struct Renderer {
 }
 
 impl Renderer {
-    pub async fn new(window: Arc<Window>) -> Self {
+    pub async fn new(window: Arc<Window>) -> Result<Self> {
         let instance = wgpu::Instance::new(&wgpu::InstanceDescriptor::default());
         let adapter = instance
             .request_adapter(&wgpu::RequestAdapterOptionsBase::default())
             .await
-            .expect("cannot create adapter from wgpu instance");
+            .context("cannot create adapter from wgpu instance")?;
+
         let (device, queue) = adapter
             .request_device(
                 &wgpu::DeviceDescriptor::default(),
                 None, // Trace path
             )
-            .await
-            .unwrap();
+            .await?;
 
-        let surface = instance.create_surface(window.clone()).unwrap();
+        let surface = instance.create_surface(window.clone())?;
         let cap = surface.get_capabilities(&adapter);
         let surface_format = cap.formats[0];
 
@@ -43,7 +44,7 @@ impl Renderer {
 
         renderer.configure_surface();
 
-        renderer
+        Ok(renderer)
     }
 
     fn configure_surface(&self) {
@@ -69,11 +70,11 @@ impl Renderer {
         self.configure_surface();
     }
 
-    pub fn render(&self) {
+    pub fn render(&self) -> Result<()> {
         let surface_texture = self
             .surface
             .get_current_texture()
-            .expect("failed to acquire next swapchain texture");
+            .context("failed to acquire next swapchain texture")?;
 
         let texture_view = surface_texture
             .texture
@@ -116,5 +117,7 @@ impl Renderer {
         self.queue.submit([encoder.finish()]);
         self.window.pre_present_notify();
         surface_texture.present();
+
+        Ok(())
     }
 }
