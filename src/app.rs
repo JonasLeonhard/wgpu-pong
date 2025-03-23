@@ -1,4 +1,5 @@
 use log::{error, info};
+use palette::Srgba;
 use std::sync::Arc;
 use winit::application::ApplicationHandler;
 use winit::event::WindowEvent;
@@ -49,7 +50,12 @@ impl ApplicationHandler for App {
                 event_loop.exit();
             }
             WindowEvent::RedrawRequested => {
-                if let Err(err) = renderer.render() {
+                renderer.begin_drawing();
+
+                // Draw rectangles
+                renderer.draw_rectangle(150, 300, 80, 80, Srgba::new(67, 140, 127, 1));
+
+                if let Err(err) = renderer.end_drawing() {
                     error!("Error: renderer.render(): {}", err);
                 }
 

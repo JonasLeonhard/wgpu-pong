@@ -1,8 +1,13 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use palette::Srgba;
+use palette::{Srgba, encoding::linear};
 use winit::window::Window;
+
+struct Vertex {
+    position: [f32; 2],
+    color: [f32; 4],
+}
 
 pub struct Renderer {
     window: Arc<Window>,
@@ -11,6 +16,10 @@ pub struct Renderer {
     size: winit::dpi::PhysicalSize<u32>,
     surface: wgpu::Surface<'static>,
     surface_format: wgpu::TextureFormat,
+
+    vertices: Vec<Vertex>,
+    indices: Vec<u16>,
+    current_index: u16,
 }
 
 impl Renderer {
@@ -41,6 +50,10 @@ impl Renderer {
             size,
             surface,
             surface_format,
+
+            vertices: Vec::new(),
+            indices: Vec::new(),
+            current_index: 0, // the current vertex index. Will be used to create indicies
         };
 
         renderer.configure_surface();
@@ -71,7 +84,13 @@ impl Renderer {
         self.configure_surface();
     }
 
-    pub fn render(&self) -> Result<()> {
+    pub fn begin_drawing(&mut self) {
+        self.vertices.clear();
+        self.indices.clear();
+        self.current_index = 0;
+    }
+
+    pub fn end_drawing(&self) -> Result<()> {
         let surface_texture = self.surface.get_current_texture()?;
 
         let texture_view = surface_texture
@@ -87,7 +106,7 @@ impl Renderer {
 
         let clear_color = Srgba::new(67, 140, 127, 1).into_linear();
 
-        let renderpass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+        let render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
                 view: &texture_view,
@@ -107,10 +126,17 @@ impl Renderer {
             occlusion_query_set: None,
         });
 
-        // If you wanted to call any drawing commands, they would go here.
+        // Drawing:
+        if !self.indices.is_empty() {
+            // TODO!:
+            // render_pass.set_pipeline(&self.render_pipeline);
+            // render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
+            // render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
+            // render_pass.draw_indexed(0..self.indices.len() as u32, 0, 0..1);
+        }
 
         // End the renderpass.
-        drop(renderpass);
+        drop(render_pass);
 
         // Submit the command in the queue to execute
         self.queue.submit([encoder.finish()]);
@@ -118,5 +144,54 @@ impl Renderer {
         surface_texture.present();
 
         Ok(())
+    }
+
+    pub fn draw_rectangle(
+        &mut self,
+        pos_x: i32,
+        pos_y: i32,
+        width: i32,
+        height: i32,
+        color: Srgba,
+    ) {
+        // Normalized Coordinates
+        let x1 = 2.0 * pos_x as f32 / self.size.width as f32 - 1.0;
+        let y1 = -(2.0 * pos_y as f32 / self.size.height as f32 - 1.0); // Flip Y axis
+        let x2 = 2.0 * (pos_x + width) as f32 / self.size.width as f32 - 1.0;
+        let y2 = -(2.0 * (pos_y + height) as f32 / self.size.height as f32 - 1.0);
+
+        let linear_color = color.into_linear();
+
+        // Create Rectangle (Verticies):
+        // Top-left
+        self.vertices.push(Vertex {
+            position: [x1, y1],
+            color: linear_color.into(),
+        });
+        // Top-right
+        self.vertices.push(Vertex {
+            position: [x2, y1],
+            color: linear_color.into(),
+        });
+        // Bottom-right
+        self.vertices.push(Vertex {
+            position: [x2, y2],
+            color: linear_color.into(),
+        });
+        // Bottom-left
+        self.vertices.push(Vertex {
+            position: [x1, y2],
+            color: linear_color.into(),
+        });
+
+        // Create Rectangle (Indicies)
+        self.indices.push(self.current_index);
+        self.indices.push(self.current_index + 1);
+        self.indices.push(self.current_index + 2);
+        self.indices.push(self.current_index);
+        self.indices.push(self.current_index + 2);
+        self.indices.push(self.current_index + 3);
+
+        self.current_index += 4;
     }
 }
