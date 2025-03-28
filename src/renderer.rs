@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
+use cgmath::Vector2;
 use palette::Srgba;
 use winit::window::Window;
 
@@ -182,7 +183,7 @@ impl Renderer {
         self.current_index = 0;
     }
 
-    pub fn end_drawing(&self) -> Result<()> {
+    pub fn end_drawing(&mut self) -> Result<()> {
         let surface_texture = self.surface.get_current_texture()?;
 
         let texture_view = surface_texture
@@ -219,6 +220,10 @@ impl Renderer {
         });
 
         // Update Drawing Data with vertices & indices:
+        if self.indices.len() % 2 != 0 {
+            // pad indicies to align with u16
+            self.indices.push(0)
+        }
         self.queue
             .write_buffer(&self.vertex_buffer, 0, bytemuck::cast_slice(&self.vertices));
         self.queue
@@ -244,39 +249,34 @@ impl Renderer {
         Ok(())
     }
 
-    pub fn draw_rectangle(
-        &mut self,
-        pos_x: i32,
-        pos_y: i32,
-        width: i32,
-        height: i32,
-        color: Srgba,
-    ) {
-        // Normalized Coordinates
-        let x1 = 2.0 * pos_x as f32 / self.size.width as f32 - 1.0;
-        let y1 = -(2.0 * pos_y as f32 / self.size.height as f32 - 1.0);
-        let x2 = 2.0 * (pos_x + width) as f32 / self.size.width as f32 - 1.0;
-        let y2 = -(2.0 * (pos_y + height) as f32 / self.size.height as f32 - 1.0);
+    fn to_ndc(&self, pos: Vector2<f32>) -> Vector2<f32> {
+        Vector2::new(
+            2.0 * pos.x / self.size.width as f32 - 1.0,
+            -(2.0 * pos.y / self.size.height as f32 - 1.0),
+        )
+    }
 
-        // Create Rectangle (Verticies):
-        // Top-left
+    pub fn draw_rectangle(&mut self, pos: Vector2<f32>, width: f32, height: f32, color: Srgba) {
+        let top_left = self.to_ndc(pos);
+        let top_right = self.to_ndc(Vector2::new(pos.x + width, pos.y));
+        let bottom_right = self.to_ndc(Vector2::new(pos.x + width, pos.y + height));
+        let bottom_left = self.to_ndc(Vector2::new(pos.x, pos.y + height));
+
+        // Create Rectangle (Vertices):
         self.vertices.push(Vertex {
-            position: [x1, y1],
+            position: top_left.into(),
             color: color.into(),
         });
-        // Top-right
         self.vertices.push(Vertex {
-            position: [x2, y1],
+            position: top_right.into(),
             color: color.into(),
         });
-        // Bottom-right
         self.vertices.push(Vertex {
-            position: [x2, y2],
+            position: bottom_right.into(),
             color: color.into(),
         });
-        // Bottom-left
         self.vertices.push(Vertex {
-            position: [x1, y2],
+            position: bottom_left.into(),
             color: color.into(),
         });
 
@@ -289,5 +289,32 @@ impl Renderer {
         self.indices.push(self.current_index);
 
         self.current_index += 4;
+    }
+
+    pub fn draw_triangle(
+        &mut self,
+        v1: Vector2<f32>,
+        v2: Vector2<f32>,
+        v3: Vector2<f32>,
+        color: Srgba,
+    ) {
+        self.vertices.push(Vertex {
+            position: self.to_ndc(v1).into(),
+            color: color.into(),
+        });
+        self.vertices.push(Vertex {
+            position: self.to_ndc(v2).into(),
+            color: color.into(),
+        });
+        self.vertices.push(Vertex {
+            position: self.to_ndc(v3).into(),
+            color: color.into(),
+        });
+
+        self.indices.push(self.current_index);
+        self.indices.push(self.current_index + 1);
+        self.indices.push(self.current_index + 2);
+
+        self.current_index += 3;
     }
 }
