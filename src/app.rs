@@ -52,8 +52,14 @@ impl ApplicationHandler for App {
             WindowEvent::RedrawRequested => {
                 renderer.begin_drawing();
 
-                // Draw rectangles
-                renderer.draw_rectangle(150, 300, 80, 80, Srgba::new(67, 140, 127, 1));
+                // Draw
+                renderer.draw_rectangle(
+                    (renderer.size.width / 3) as i32,
+                    (renderer.size.height / 3) as i32,
+                    (renderer.size.width / 3) as i32,
+                    (renderer.size.height / 3) as i32,
+                    Srgba::new(1., 0., 0., 1.),
+                );
 
                 if let Err(err) = renderer.end_drawing() {
                     error!("Error: renderer.render(): {}", err);
