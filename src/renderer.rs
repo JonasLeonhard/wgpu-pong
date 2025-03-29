@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use anyhow::{Context, Result};
-use cgmath::Vector2;
+use cgmath::{Deg, Matrix2, Vector2};
 use palette::Srgba;
 use winit::window::Window;
 
@@ -256,31 +256,49 @@ impl Renderer {
         )
     }
 
-    pub fn draw_rectangle(&mut self, pos: Vector2<f32>, width: f32, height: f32, color: Srgba) {
-        let top_left = self.to_ndc(pos);
-        let top_right = self.to_ndc(Vector2::new(pos.x + width, pos.y));
-        let bottom_right = self.to_ndc(Vector2::new(pos.x + width, pos.y + height));
-        let bottom_left = self.to_ndc(Vector2::new(pos.x, pos.y + height));
+    pub fn draw_rectangle(
+        &mut self,
+        pos: Vector2<f32>,
+        width: f32,
+        height: f32,
+        color: Srgba,
+        rotation: Deg<f32>,
+    ) {
+        // Define corners in local space (relative to center)
+        let origin = Vector2::new(pos.x + width / 2.0, pos.y + height / 2.0);
+        let half_width = width / 2.0;
+        let half_height = height / 2.0;
+        let local_top_left = Vector2::new(-half_width, -half_height);
+        let local_top_right = Vector2::new(half_width, -half_height);
+        let local_bottom_right = Vector2::new(half_width, half_height);
+        let local_bottom_left = Vector2::new(-half_width, half_height);
+
+        // Apply rotation and translate back to world space
+        let rotation_matrix = Matrix2::from_angle(rotation);
+        let rotated_top_left = rotation_matrix * local_top_left + origin;
+        let rotated_top_right = rotation_matrix * local_top_right + origin;
+        let rotated_bottom_right = rotation_matrix * local_bottom_right + origin;
+        let rotated_bottom_left = rotation_matrix * local_bottom_left + origin;
 
         // Create Rectangle (Vertices):
         self.vertices.push(Vertex {
-            position: top_left.into(),
+            position: self.to_ndc(rotated_top_left).into(),
             color: color.into(),
         });
         self.vertices.push(Vertex {
-            position: top_right.into(),
+            position: self.to_ndc(rotated_top_right).into(),
             color: color.into(),
         });
         self.vertices.push(Vertex {
-            position: bottom_right.into(),
+            position: self.to_ndc(rotated_bottom_right).into(),
             color: color.into(),
         });
         self.vertices.push(Vertex {
-            position: bottom_left.into(),
+            position: self.to_ndc(rotated_bottom_left).into(),
             color: color.into(),
         });
 
-        // Create Rectangle CCW (Indicies)
+        // Create Rectangle CCW (Indices)
         self.indices.push(self.current_index + 2);
         self.indices.push(self.current_index + 1);
         self.indices.push(self.current_index);
@@ -297,17 +315,30 @@ impl Renderer {
         v2: Vector2<f32>,
         v3: Vector2<f32>,
         color: Srgba,
+        rotation: Deg<f32>,
     ) {
+        let origin = Vector2::new((v1.x + v2.x + v3.x) / 3.0, (v1.y + v2.y + v3.y) / 3.0);
+
+        // Translate to origin
+        let local_v1 = v1 - origin;
+        let local_v2 = v2 - origin;
+        let local_v3 = v3 - origin;
+
+        let rotation_matrix = Matrix2::from_angle(rotation);
+        let r1 = rotation_matrix * local_v1 + origin;
+        let r2 = rotation_matrix * local_v2 + origin;
+        let r3 = rotation_matrix * local_v3 + origin;
+
         self.vertices.push(Vertex {
-            position: self.to_ndc(v1).into(),
+            position: self.to_ndc(r1).into(),
             color: color.into(),
         });
         self.vertices.push(Vertex {
-            position: self.to_ndc(v2).into(),
+            position: self.to_ndc(r2).into(),
             color: color.into(),
         });
         self.vertices.push(Vertex {
-            position: self.to_ndc(v3).into(),
+            position: self.to_ndc(r3).into(),
             color: color.into(),
         });
 

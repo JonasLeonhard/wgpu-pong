@@ -1,4 +1,4 @@
-use cgmath::Vector2;
+use cgmath::{Deg, Vector2};
 use log::{error, info};
 use palette::Srgba;
 use std::sync::Arc;
@@ -62,6 +62,7 @@ impl ApplicationHandler for App {
                     renderer.size.width as f32 / 3.,
                     renderer.size.height as f32 / 3.,
                     Srgba::new(1., 0., 0., 1.),
+                    Deg(45.),
                 );
 
                 renderer.draw_triangle(
@@ -78,6 +79,7 @@ impl ApplicationHandler for App {
                         renderer.size.height as f32 / 2. - 200.,
                     ),
                     Srgba::new(0., 1., 0., 1.),
+                    Deg(90.),
                 );
 
                 if let Err(err) = renderer.end_drawing() {
