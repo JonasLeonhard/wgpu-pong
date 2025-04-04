@@ -9,6 +9,9 @@ use winit::window::{Window, WindowId};
 
 use crate::renderer::Renderer;
 
+static FONT_SIZE: f32 = 32.;
+static LINE_HEIGHT: f32 = 32.;
+
 #[derive(Default)]
 pub struct App {
     window: Option<Arc<Window>>,
@@ -83,20 +86,30 @@ impl ApplicationHandler for App {
                 );
 
                 renderer.draw_text(
-                    "TESTING",
-                    Vector2::new(renderer.size.width as f32 / 2., 0.),
-                    22.,
-                    1.,
+                    "Top Left",
+                    Vector2::new(0., 0.),
+                    FONT_SIZE,
+                    LINE_HEIGHT,
                     None,
                 );
 
-                renderer.draw_text("Top Left", Vector2::new(0., 0.), 22., 1., None);
+                let text = "TESTING\nCENTER";
+                let text_width = renderer.measure_text(text, FONT_SIZE, LINE_HEIGHT);
                 renderer.draw_text(
-                    "Top Right",
-                    Vector2::new(renderer.size.width as f32 - 100., 0.), // TODO: align this
-                    // properly?
-                    22.,
-                    1.,
+                    text,
+                    Vector2::new(renderer.size.width as f32 / 2. - text_width / 2., 0.),
+                    FONT_SIZE,
+                    LINE_HEIGHT,
+                    None,
+                );
+
+                let text = "Top Right Text 🐥";
+                let text_width = renderer.measure_text(text, FONT_SIZE, LINE_HEIGHT);
+                renderer.draw_text(
+                    text,
+                    Vector2::new(renderer.size.width as f32 - text_width, 0.),
+                    FONT_SIZE,
+                    LINE_HEIGHT,
                     None,
                 );
 

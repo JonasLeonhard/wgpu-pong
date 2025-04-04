@@ -381,7 +381,7 @@ impl Renderer {
             color: color.into(),
         });
 
-        // Create Rectangle CCW (Indices)
+        // Create Rectangle (Indices)
         self.indices.push(self.current_index + 2);
         self.indices.push(self.current_index + 1);
         self.indices.push(self.current_index);
@@ -407,6 +407,7 @@ impl Renderer {
         let local_v2 = v2 - origin;
         let local_v3 = v3 - origin;
 
+        // Apply rotation
         let rotation_matrix = Matrix2::from_angle(rotation);
         let r1 = rotation_matrix * local_v1 + origin;
         let r2 = rotation_matrix * local_v2 + origin;
@@ -437,10 +438,10 @@ impl Renderer {
         text: &str,
         pos: Vector2<f32>,
         font_size: f32,
-        spacing: f32,
+        line_height: f32,
         color: Option<glyphon::Color>,
     ) {
-        let metrics = Metrics::new(font_size, font_size * spacing);
+        let metrics = Metrics::new(font_size, line_height);
         let mut buffer = Buffer::new(&mut self.font_system, metrics);
 
         buffer.set_text(
@@ -467,5 +468,27 @@ impl Renderer {
                 color: color.unwrap_or(glyphon::Color::rgb(255, 255, 255)),
             }
         })
+    }
+
+    pub fn measure_text(&mut self, text: &str, font_size: f32, line_height: f32) -> f32 {
+        let metrics = Metrics::new(font_size, line_height);
+        let mut buffer = Buffer::new(&mut self.font_system, metrics);
+
+        buffer.set_text(
+            &mut self.font_system,
+            text,
+            Attrs::new().family(Family::SansSerif),
+            Shaping::Advanced,
+        );
+
+        buffer.shape_until_scroll(&mut self.font_system, false);
+
+        // maximum text width
+        buffer
+            .layout_runs()
+            .flat_map(|run| run.glyphs.iter())
+            .map(|glyph| glyph.x + glyph.w)
+            .max_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal))
+            .unwrap_or(0.0)
     }
 }
