@@ -82,6 +82,24 @@ impl ApplicationHandler for App {
                     Deg(90.),
                 );
 
+                renderer.draw_text(
+                    "TESTING",
+                    Vector2::new(renderer.size.width as f32 / 2., 0.),
+                    22.,
+                    1.,
+                    None,
+                );
+
+                renderer.draw_text("Top Left", Vector2::new(0., 0.), 22., 1., None);
+                renderer.draw_text(
+                    "Top Right",
+                    Vector2::new(renderer.size.width as f32 - 100., 0.), // TODO: align this
+                    // properly?
+                    22.,
+                    1.,
+                    None,
+                );
+
                 if let Err(err) = renderer.end_drawing() {
                     error!("Error: renderer.render(): {}", err);
                 }

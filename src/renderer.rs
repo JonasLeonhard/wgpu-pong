@@ -1,7 +1,11 @@
+use anyhow::{Context, Result};
 use std::sync::Arc;
 
-use anyhow::{Context, Result};
 use cgmath::{Deg, Matrix2, Vector2};
+use glyphon::{
+    Attrs, Buffer, Cache, Family, FontSystem, Metrics, Resolution, Shaping, SwashCache, TextArea,
+    TextAtlas, TextBounds, TextRenderer, Viewport,
+};
 use palette::Srgba;
 use winit::window::Window;
 
@@ -12,6 +16,13 @@ struct Vertex {
     color: [f32; 4],
 }
 
+struct Text {
+    buffer: Buffer,
+    position: Vector2<f32>,
+    bounds: TextBounds,
+    color: glyphon::Color,
+}
+
 pub struct Renderer {
     window: Arc<Window>,
     device: wgpu::Device,
@@ -20,13 +31,21 @@ pub struct Renderer {
     surface: wgpu::Surface<'static>,
     surface_format: wgpu::TextureFormat,
 
+    // 2d rendering
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
-
     vertices: Vec<Vertex>,
     indices: Vec<u16>,
     current_index: u16,
+
+    // text rendering
+    font_system: FontSystem,
+    swash_cache: SwashCache,
+    text_viewport: Viewport,
+    text_atlas: TextAtlas,
+    text_renderer: TextRenderer,
+    text: Vec<Text>,
 }
 
 impl Renderer {
@@ -132,6 +151,19 @@ impl Renderer {
             cache: None,
         });
 
+        // Glyphon Text Renderer:
+        let font_system = FontSystem::new();
+        let swash_cache = SwashCache::new();
+        let text_cache = Cache::new(&device);
+        let text_viewport = Viewport::new(&device, &text_cache);
+        let mut text_atlas = TextAtlas::new(&device, &queue, &text_cache, surface_format);
+        let text_renderer = TextRenderer::new(
+            &mut text_atlas,
+            &device,
+            wgpu::MultisampleState::default(),
+            None,
+        );
+
         let renderer = Self {
             window,
             device,
@@ -147,6 +179,14 @@ impl Renderer {
             vertices: Vec::new(),
             indices: Vec::new(),
             current_index: 0, // the current vertex index. Will be used to create indicies
+
+            // text renderer
+            font_system,
+            swash_cache,
+            text_viewport,
+            text_atlas,
+            text_renderer,
+            text: Vec::new(),
         };
 
         renderer.configure_surface();
@@ -173,6 +213,14 @@ impl Renderer {
     pub fn resize(&mut self, new_size: winit::dpi::PhysicalSize<u32>) {
         self.size = new_size;
 
+        self.text_viewport.update(
+            &self.queue,
+            Resolution {
+                width: self.size.width,
+                height: self.size.height,
+            },
+        );
+
         // reconfigure the surface
         self.configure_surface();
     }
@@ -181,6 +229,7 @@ impl Renderer {
         self.vertices.clear();
         self.indices.clear();
         self.current_index = 0;
+        self.text.clear();
     }
 
     pub fn end_drawing(&mut self) -> Result<()> {
@@ -196,6 +245,33 @@ impl Renderer {
             });
 
         let mut encoder = self.device.create_command_encoder(&Default::default());
+
+        let text_areas: Vec<TextArea> = self
+            .text
+            .iter()
+            .map(|element| TextArea {
+                buffer: &element.buffer,
+                left: element.position.x,
+                top: element.position.y,
+                scale: 1.0,
+                bounds: element.bounds,
+                default_color: element.color,
+                custom_glyphs: &[],
+            })
+            .collect();
+
+        // Only prepare text renderer if we have text to render
+        if !text_areas.is_empty() {
+            self.text_renderer.prepare(
+                &self.device,
+                &self.queue,
+                &mut self.font_system,
+                &mut self.text_atlas,
+                &self.text_viewport,
+                text_areas,
+                &mut self.swash_cache,
+            )?;
+        }
 
         let clear_color = Srgba::new(67, 140, 127, 1).into_linear();
 
@@ -238,6 +314,10 @@ impl Renderer {
             render_pass.draw_indexed(0..self.indices.len() as u32, 0, 0..1);
         }
 
+        // Draw Text
+        self.text_renderer
+            .render(&self.text_atlas, &self.text_viewport, &mut render_pass)?;
+
         // End the renderpass.
         drop(render_pass);
 
@@ -245,6 +325,9 @@ impl Renderer {
         self.queue.submit([encoder.finish()]);
         self.window.pre_present_notify();
         surface_texture.present();
+
+        // Trim the text_atlas to free up unused space
+        self.text_atlas.trim();
 
         Ok(())
     }
@@ -347,5 +430,42 @@ impl Renderer {
         self.indices.push(self.current_index + 2);
 
         self.current_index += 3;
+    }
+
+    pub fn draw_text(
+        &mut self,
+        text: &str,
+        pos: Vector2<f32>,
+        font_size: f32,
+        spacing: f32,
+        color: Option<glyphon::Color>,
+    ) {
+        let metrics = Metrics::new(font_size, font_size * spacing);
+        let mut buffer = Buffer::new(&mut self.font_system, metrics);
+
+        buffer.set_text(
+            &mut self.font_system,
+            text,
+            Attrs::new().family(Family::SansSerif),
+            Shaping::Advanced,
+        );
+
+        buffer.shape_until_scroll(&mut self.font_system, false);
+
+        let bounds = TextBounds {
+            left: 0,
+            top: 0,
+            right: self.size.width as i32,
+            bottom: self.size.height as i32,
+        };
+
+        self.text.push({
+            Text {
+                buffer,
+                position: pos,
+                bounds,
+                color: color.unwrap_or(glyphon::Color::rgb(255, 255, 255)),
+            }
+        })
     }
 }
