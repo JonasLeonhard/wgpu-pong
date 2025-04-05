@@ -31,6 +31,8 @@ pub struct Renderer {
     surface: wgpu::Surface<'static>,
     surface_format: wgpu::TextureFormat,
 
+    clear_color: Option<Srgba>,
+
     // 2d rendering
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
@@ -172,6 +174,8 @@ impl Renderer {
             surface,
             surface_format,
 
+            clear_color: None,
+
             render_pipeline,
             vertex_buffer,
             index_buffer,
@@ -225,6 +229,10 @@ impl Renderer {
         self.configure_surface();
     }
 
+    pub fn clear_color(&mut self, color: Srgba) {
+        self.clear_color = Some(color);
+    }
+
     pub fn begin_drawing(&mut self) {
         self.vertices.clear();
         self.indices.clear();
@@ -273,7 +281,10 @@ impl Renderer {
             )?;
         }
 
-        let clear_color = Srgba::new(67, 140, 127, 1).into_linear();
+        let clear_color = self
+            .clear_color
+            .unwrap_or(Srgba::new(0., 0., 0., 1.))
+            .into_linear();
 
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: None,
@@ -282,9 +293,9 @@ impl Renderer {
                 resolve_target: None,
                 ops: wgpu::Operations {
                     load: wgpu::LoadOp::Clear(wgpu::Color {
-                        r: clear_color.red,
-                        g: clear_color.green,
-                        b: clear_color.blue,
+                        r: clear_color.red as f64,
+                        g: clear_color.green as f64,
+                        b: clear_color.blue as f64,
                         a: clear_color.alpha,
                     }),
                     store: wgpu::StoreOp::Store,
@@ -431,6 +442,37 @@ impl Renderer {
         self.indices.push(self.current_index + 2);
 
         self.current_index += 3;
+    }
+
+    pub fn draw_circle(&mut self, center: Vector2<f32>, radius: f32, color: Srgba) {
+        const NUM_SEGMENTS: u16 = 32;
+
+        // Center vertex
+        self.vertices.push(Vertex {
+            position: self.to_ndc(center).into(),
+            color: color.into(),
+        });
+
+        // Create vertices for the perimeter of the circle
+        for i in 0..=NUM_SEGMENTS {
+            let angle = 2.0 * std::f32::consts::PI * (i as f32) / (NUM_SEGMENTS as f32);
+            let x = center.x + radius * angle.cos();
+            let y = center.y + radius * angle.sin();
+
+            self.vertices.push(Vertex {
+                position: self.to_ndc(Vector2::new(x, y)).into(),
+                color: color.into(),
+            });
+        }
+
+        // Create indices for triangles (connecting center to perimeter points)
+        for i in 0..NUM_SEGMENTS {
+            self.indices.push(self.current_index + i + 2); // Next perimeter point
+            self.indices.push(self.current_index + i + 1); // Current perimeter point
+            self.indices.push(self.current_index); // Center
+        }
+
+        self.current_index += NUM_SEGMENTS + 2;
     }
 
     pub fn draw_text(
